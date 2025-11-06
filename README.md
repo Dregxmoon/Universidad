@@ -17,3 +17,5 @@ CREATE TABLE Alumnos (
 
 INSERT INTO Alumnos (Num_control, Nombre, Semestre, Carrera, Contraseña_hash, Foto)
 VALUES ('23212001', 'Himiko Toga', 2, 'Ing. en Sistemas Computaciones', 'tshzeybste', 'img/toga.jpg');
+
+prueba de actualizacion de mi laptop
