@@ -18,7 +18,7 @@ edad = input("Ingresa la edad: ")
 try:
     edad = int(edad)
 except ValueError:
-    print("❌ La edad debe ser un número entero.")
+    print("Esa no es una edad valida :v")
     cursor.close()
     conn.close()
     exit()
@@ -27,16 +27,16 @@ except ValueError:
 query = "INSERT INTO PERSONAS (Nombre, Edad) VALUES (?, ?)"
 cursor.execute(query, (nombre, edad))
 conn.commit()
-print("✅ Datos insertados correctamente.")
+print("Datos insertados yey!")
 
 # Preguntar si desea ver todos los registros
-ver_todo = input("¿Deseas ver todos los datos de la tabla PERSONAS? (s/n): ").strip().lower()
+ver_todo = input("¿Quieres consultar los demas datos? (s/n): ").strip().lower()
 
 if ver_todo == 's':
     cursor.execute("SELECT * FROM PERSONAS")
     filas = cursor.fetchall()
     
-    print("\n📋 Registros en la tabla PERSONAS:")
+    print("\nRegistros en la tabla PERSONAS:")
     for fila in filas:
         print(f"ID: {fila[0]} | NOMBRE: {fila[1]} | EDAD: {fila[2]}")
 
