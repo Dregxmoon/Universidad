@@ -11,7 +11,7 @@ conn = pyodbc.connect(
 cursor = conn.cursor()
 
 # Solicitar datos al usuario
-nombre = input("Ingresa el nombre de la persona: ")
+nombre = input("Ingresa el nombre: ")
 edad = input("Ingresa la edad: ")
 
 # Validar que edad sea número
@@ -30,7 +30,7 @@ conn.commit()
 print("Datos insertados yey!")
 
 # Preguntar si desea ver todos los registros
-ver_todo = input("¿Quieres consultar los demas datos? (s/n): ").strip().lower()
+ver_todo = input("Quieres consultar los demas datos? (s/n): ").strip().lower()
 
 if ver_todo == 's':
     cursor.execute("SELECT * FROM PERSONAS")
