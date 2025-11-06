@@ -6,22 +6,14 @@ script de la base de datos para el programa con algunnas inserciones
 CREATE DATABASE PruebaDB
 USE PruebaDB
 
-Create Table PERSONAS(
-ID INT PRIMARY KEY IDENTITY (1,1),
-NOMBRE NVARCHAR(100),
-EDAD INT
-)
-
-SELECT * FROM PERSONAS
-
-CREATE TABLE USUARIOS (
-    ID INT PRIMARY KEY IDENTITY(1,1),
-    NUMERO_CONTROL NVARCHAR(50),
-    CONTRASEÑA NVARCHAR(50)
+CREATE TABLE Alumnos (
+  Num_control CHAR(8) PRIMARY KEY,             
+  Nombre NVARCHAR(100) NOT NULL,
+  Semestre INT,         
+  Carrera NVARCHAR(50) DEFAULT 'Ing. en Sistemas Computaciones',
+  Contraseña_hash NVARCHAR(255) NOT NULL,
+  Foto NVARCHAR(255)
 );
 
-
-INSERT INTO USUARIOS (NUMERO_CONTROL, CONTRASEÑA)
-VALUES (23212078, 'tshzeybste');
-
-SELECT * FROM USUARIOS
+INSERT INTO Alumnos (Num_control, Nombre, Semestre, Carrera, Contraseña_hash, Foto)
+VALUES ('23212001', 'Himiko Toga', 2, 'Ing. en Sistemas Computaciones', 'tshzeybste', 'img/toga.jpg');
