@@ -2,6 +2,7 @@ from PyQt5.QtWidgets import QMessageBox
 import pyodbc
 
 from Diseño_Interfaces.login import LoginWindow
+from Logica_Interfaces.Menu import MenuLogic
 
 # Función para la conexión con SQL Server
 def conectar_sql():
@@ -42,6 +43,10 @@ class LoginLogic(LoginWindow):
 
             if resultado:
                 QMessageBox.information(self, "Acceso", f"Bienvenido, {resultado.Nombre}")
+                self.close()
+                self.dashboard = MenuLogic(numero_control)
+                self.dashboard.show()
+                
             else:
                 QMessageBox.critical(self, "Sujeto no identificado", "Invasor!!!!")
 

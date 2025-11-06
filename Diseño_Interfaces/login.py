@@ -2,6 +2,7 @@ from PyQt5.QtWidgets import (
     QApplication, QWidget, QLabel, QLineEdit, QPushButton,
     QVBoxLayout, QHBoxLayout, QCheckBox, QFrame
 )
+
 from PyQt5.QtGui import (
     QFont, QIcon, QPainter, QLinearGradient, QColor, QBrush,
     QPainterPath, QRegion
@@ -20,10 +21,11 @@ class LoginWindow(QWidget):
     def paintEvent(self, event):
         painter = QPainter(self)
         gradient = QLinearGradient(0, 0, self.width(), self.height())
-        gradient.setColorAt(0, QColor("#f9f871"))
-        gradient.setColorAt(0.5, QColor("#a8e063"))
-        gradient.setColorAt(1, QColor("#56ab2f"))
+        gradient.setColorAt(0.0, QColor("#ffffff"))     # Blanco arriba
+        gradient.setColorAt(0.4, QColor("#a3d5ff"))      # Azul claro centro
+        gradient.setColorAt(1.0, QColor("#3399ff"))      # Azul intenso abajo
         painter.fillRect(self.rect(), QBrush(gradient))
+
 
     def resizeEvent(self, event):
         path = QPainterPath()
@@ -53,10 +55,10 @@ class LoginWindow(QWidget):
         fuente_texto = QFont("Segoe UI", 10)
         
 
-        # Botón "X" para cerrar
+        # Botón "X" 
         cerrar_btn = QPushButton("✕", self)
         cerrar_btn.setGeometry(self.width() - 35, 10, 25, 25)
-        cerrar_btn.setStyleSheet("background-color: transparent; color: white; font-size: 16px; border: none;")
+        cerrar_btn.setStyleSheet("background-color: transparent; color: black; font-size: 16px; border: none;")
         cerrar_btn.clicked.connect(self.close)
 
         # Caja de login
@@ -64,7 +66,7 @@ class LoginWindow(QWidget):
         login_box.setGeometry(50, 80, 300, 360)
         login_box.setStyleSheet("""
             QFrame {
-                background-color: #e0f7e9;
+                background-color: #cce 6ff;
                 border-radius: 15px;
             }
         """)
