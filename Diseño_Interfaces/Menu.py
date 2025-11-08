@@ -1,4 +1,4 @@
-from PyQt5.QtWidgets import QWidget, QLabel, QPushButton, QVBoxLayout, QHBoxLayout, QFrame, QComboBox
+from PyQt5.QtWidgets import QWidget, QLabel, QPushButton, QVBoxLayout, QHBoxLayout, QFrame
 from PyQt5.QtGui import QPixmap, QFont
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QPainter, QLinearGradient, QColor, QBrush, QPainterPath, QRegion
@@ -7,48 +7,29 @@ class Menu(QWidget):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Dashboard Académico")
-        self.setGeometry(100, 100, 900, 500)
-        self.setStyleSheet("")
+        self.setGeometry(100, 100, 800, 400)
         self.setWindowFlags(Qt.FramelessWindowHint)
         self.setAttribute(Qt.WA_TranslucentBackground)
-        self.setFixedSize(900, 500)
+        self.setFixedSize(800, 400)
         self.drag_position = None
 
-        # Botón "X" para cerrar
+        # Botón "✕" 
         self.cerrar_btn = QPushButton("✕", self)
         self.cerrar_btn.setGeometry(self.width() - 35, 10, 25, 25)
         self.cerrar_btn.setStyleSheet("""
             QPushButton {
                 background-color: transparent;
                 color: black;
-                font-size: 16px;
+                font-size: 18px;
                 border: none;
             }
-            QPushButton:hover {
-                color: red;
-            }
+            
         """)
         self.cerrar_btn.clicked.connect(self.close)
 
         # Fuentes
         self.fuente_general = QFont("Segoe UI", 10)
         self.fuente_titulo = QFont("Segoe UI", 14, QFont.Bold)
-
-        # Etiquetas de datos
-        self.label_nombre = QLabel()
-        self.label_num_control = QLabel()
-        self.label_carrera = QLabel()
-        self.label_semestre = QLabel()
-        self.label_estatus = QLabel()
-
-        for lbl in [self.label_nombre, self.label_num_control, self.label_carrera, self.label_semestre, self.label_estatus]:
-            lbl.setFont(self.fuente_general)
-            lbl.setTextFormat(Qt.RichText)
-            lbl.setStyleSheet("color: #003366; font-size: 13px; padding-right: 20px;")
-
-        # Layout vertical para los datos agrupados
-        self.datos_layout = QVBoxLayout()
-        self.datos_layout.setSpacing(5)
 
         # Etiquetas agrupadas
         self.label_linea1 = QLabel()  # Nombre
@@ -60,17 +41,20 @@ class Menu(QWidget):
             lbl.setTextFormat(Qt.RichText)
             lbl.setStyleSheet("color: #003366; font-size: 13px;")
 
+        # Layout vertical para los datos
+        self.datos_layout = QVBoxLayout()
+        self.datos_layout.setSpacing(5)
         self.datos_layout.addWidget(self.label_linea1)
         self.datos_layout.addWidget(self.label_linea2)
-        self.datos_layout.addSpacing(10)  # Doble salto visual
+        self.datos_layout.addSpacing(10)
         self.datos_layout.addWidget(self.label_linea3)
-
 
         # Tarjeta de identificación
         self.tarjeta = QFrame()
         self.tarjeta.setStyleSheet("background-color: white; border-radius: 12px;")
         self.tarjeta.setFixedHeight(250)
-        self.tarjeta_layout = QHBoxLayout(self.tarjeta)
+        self.tarjeta_layout = QHBoxLayout()
+        self.tarjeta.setLayout(self.tarjeta_layout)
 
         # Foto
         self.label_foto = QLabel()
@@ -96,6 +80,10 @@ class Menu(QWidget):
         path.addRoundedRect(0, 0, self.width(), self.height(), 20, 20)
         region = path.toFillPolygon().toPolygon()
         self.setMask(QRegion(region))
+
+        # Reubicar botón "✕" en esquina superior derecha
+        self.cerrar_btn.setGeometry(self.width() - 35, 10, 25, 25)
+
         super().resizeEvent(event)
 
     def mousePressEvent(self, event):
@@ -121,11 +109,13 @@ class Menu(QWidget):
         panel_lateral = QVBoxLayout()
         panel_lateral.setSpacing(20)
 
+        # Botones del menú lateral
         self.btn_inicio = QPushButton("Inicio")
         self.btn_kardex = QPushButton("Kárdex")
         self.btn_materias = QPushButton("Carga de Materias")
+        self.btn_horario = QPushButton("Horario")
 
-        for btn in [self.btn_inicio, self.btn_kardex, self.btn_materias]:
+        for btn in [self.btn_inicio, self.btn_kardex, self.btn_materias, self.btn_horario]:
             btn.setFont(self.fuente_general)
             btn.setFixedWidth(180)
             btn.setStyleSheet("""
@@ -146,32 +136,20 @@ class Menu(QWidget):
         panel_lateral.addWidget(self.btn_inicio)
         panel_lateral.addWidget(self.btn_kardex)
         panel_lateral.addWidget(self.btn_materias)
+        panel_lateral.addWidget(self.btn_horario)
         panel_lateral.addStretch()
 
         # Panel central
         panel_central = QVBoxLayout()
-
-        # Dropdown carrera
-        self.combo_carrera = QComboBox()
-        self.combo_carrera.addItem("INGENIERÍA EN SISTEMAS COMPUTACIONALES")
-        self.combo_carrera.setFont(self.fuente_general)
-        self.combo_carrera.setStyleSheet("""
-            QComboBox {
-                background-color: #ffffff;
-                border: 1px solid #99ccff;
-                padding: 5px;
-                font-weight: bold;
-                color: #003366;
-            }
-        """)
-        panel_central.addWidget(self.combo_carrera)
-
-        # Tarjeta de identificación
         panel_central.addSpacing(20)
-        panel_central.addWidget(QLabel("<b>Identificación</b>"), alignment=Qt.AlignLeft)
+
+        titulo_identificacion = QLabel("<b>Identificación</b>")
+        titulo_identificacion.setFont(QFont("Segoe UI", 14, QFont.Bold))  
+        titulo_identificacion.setStyleSheet("color: #003366;")            
+        panel_central.addWidget(titulo_identificacion, alignment=Qt.AlignLeft)
+
         panel_central.addWidget(self.tarjeta)
         panel_central.addStretch()
 
-        # Agregar paneles al layout principal
         layout_principal.addLayout(panel_lateral)
         layout_principal.addLayout(panel_central)
