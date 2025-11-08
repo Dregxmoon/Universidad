@@ -8,7 +8,7 @@ from Logica_Interfaces.Menu import MenuLogic
 def conectar_sql():
     return pyodbc.connect(
         'DRIVER={ODBC Driver 17 for SQL Server};'
-        'SERVER=DESKTOP-EMDLNML\\SQLEXPRESS;'
+        'SERVER=DESKTOP-33OLAEM\SQLEXPRESS;'
         'DATABASE=PruebaDB;'
         'Trusted_Connection=yes;'
     )
@@ -21,7 +21,7 @@ class LoginLogic(LoginWindow):
     def conectar_sql(self):
         return pyodbc.connect(
             'DRIVER={ODBC Driver 17 for SQL Server};'
-            'SERVER=DESKTOP-EMDLNML\\SQLEXPRESS;'
+            'SERVER=DESKTOP-33OLAEM\SQLEXPRESS;'
             'DATABASE=PruebaDB;'
             'Trusted_Connection=yes;'
         )
