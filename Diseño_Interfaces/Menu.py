@@ -10,7 +10,7 @@ class Menu(QWidget):
         self.setGeometry(100, 100, 800, 400)
         self.setWindowFlags(Qt.FramelessWindowHint)
         self.setAttribute(Qt.WA_TranslucentBackground)
-        self.setFixedSize(800, 400)
+        self.setFixedSize(700, 400)
         self.drag_position = None
 
         # Botón "✕" 
@@ -34,20 +34,22 @@ class Menu(QWidget):
         # Etiquetas agrupadas
         self.label_linea1 = QLabel()  # Nombre
         self.label_linea2 = QLabel()  # Número de control
-        self.label_linea3 = QLabel()  # Carrera, semestre, estatus
-
-        for lbl in [self.label_linea1, self.label_linea2, self.label_linea3]:
+        self.label_linea3 = QLabel()  # Carrera, semestre
+        self.label_linea4 = QLabel() # estatus
+        for lbl in [self.label_linea1, self.label_linea2, self.label_linea4, self.label_linea3]:
             lbl.setFont(self.fuente_general)
             lbl.setTextFormat(Qt.RichText)
             lbl.setStyleSheet("color: #003366; font-size: 13px;")
 
         # Layout vertical para los datos
         self.datos_layout = QVBoxLayout()
-        self.datos_layout.setSpacing(5)
+        self.datos_layout.setSpacing(2)
         self.datos_layout.addWidget(self.label_linea1)
         self.datos_layout.addWidget(self.label_linea2)
-        self.datos_layout.addSpacing(10)
+        self.datos_layout.addSpacing(5)
+        self.datos_layout.addWidget(self.label_linea4)
         self.datos_layout.addWidget(self.label_linea3)
+
 
         # Tarjeta de identificación
         self.tarjeta = QFrame()

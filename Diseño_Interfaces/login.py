@@ -21,9 +21,9 @@ class LoginWindow(QWidget):
     def paintEvent(self, event):
         painter = QPainter(self)
         gradient = QLinearGradient(0, 0, self.width(), self.height())
-        gradient.setColorAt(0.0, QColor("#ffffff"))     # Blanco arriba
-        gradient.setColorAt(0.4, QColor("#a3d5ff"))      # Azul claro centro
-        gradient.setColorAt(1.0, QColor("#3399ff"))      # Azul intenso abajo
+        gradient.setColorAt(0.0, QColor("#ffffff"))     
+        gradient.setColorAt(0.4, QColor("#a3d5ff"))      
+        gradient.setColorAt(1.0, QColor("#3399ff"))     
         painter.fillRect(self.rect(), QBrush(gradient))
 
 
@@ -76,7 +76,7 @@ class LoginWindow(QWidget):
         layout.setSpacing(20)
 
         # Título
-        titulo = QLabel("UWU")
+        titulo = QLabel("SUPER AMBAR") #UWU
         titulo.setFont(fuente_titulo)
         titulo.setAlignment(Qt.AlignCenter)
         layout.addWidget(titulo)

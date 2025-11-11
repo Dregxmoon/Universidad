@@ -37,8 +37,8 @@ class MenuLogic(Menu):
                 self.label_linea3.setText(
                     f"<b>Carrera:</b> {carrera} &nbsp;&nbsp; "
                     f"<b>Semestre:</b> {semestre} &nbsp;&nbsp; "
-                    f"<b>Estatus:</b> VIGENTE"
                 )
+                self.label_linea4.setText("<b>Estatus:</b> VIGENTE")
 
                 # Foto
                 if foto:

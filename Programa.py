@@ -4,7 +4,7 @@ import pyodbc
 from Diseño_Interfaces.login import LoginWindow
 from Logica_Interfaces.Menu import MenuLogic
 
-# Función para la conexión con SQL Server
+# conexión con SQL Server
 def conectar_sql():
     return pyodbc.connect(
         'DRIVER={ODBC Driver 17 for SQL Server};'
