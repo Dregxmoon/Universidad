@@ -25,7 +25,7 @@ class LoginLogic(LoginWindow):
             'DATABASE=PruebaDB;'
             'Trusted_Connection=yes;'
         )
-
+ 
     def validar_login(self):
         numero_control = self.numero_control_input.text().strip()
         contraseña = self.contra_input.text().strip()

@@ -22,3 +22,8 @@ VALUES ('23211907', 'Samuel "Galleta"', 5, 'Ing. en Sistemas Computaciones', 'ga
 
 --DELETE FROM Alumnos
 --WHERE Num_control = 23211907;
+-- id materias
+-- materia
+-- serie
+-- semestre
+-- 

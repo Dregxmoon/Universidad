@@ -6,7 +6,7 @@ from PyQt5.QtGui import QPainter, QLinearGradient, QColor, QBrush, QPainterPath,
 class Menu(QWidget):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Dashboard Académico")
+        self.setWindowTitle("Inicio")
         self.setGeometry(100, 100, 800, 400)
         self.setWindowFlags(Qt.FramelessWindowHint)
         self.setAttribute(Qt.WA_TranslucentBackground)
@@ -41,7 +41,7 @@ class Menu(QWidget):
             lbl.setTextFormat(Qt.RichText)
             lbl.setStyleSheet("color: #003366; font-size: 13px;")
 
-        # Layout vertical para los datos
+        
         self.datos_layout = QVBoxLayout()
         self.datos_layout.setSpacing(2)
         self.datos_layout.addWidget(self.label_linea1)
@@ -51,7 +51,7 @@ class Menu(QWidget):
         self.datos_layout.addWidget(self.label_linea3)
 
 
-        # Tarjeta de identificación
+        # identificación
         self.tarjeta = QFrame()
         self.tarjeta.setStyleSheet("background-color: white; border-radius: 12px;")
         self.tarjeta.setFixedHeight(250)
@@ -83,7 +83,7 @@ class Menu(QWidget):
         region = path.toFillPolygon().toPolygon()
         self.setMask(QRegion(region))
 
-        # Reubicar botón "✕" en esquina superior derecha
+        #ubicacion x
         self.cerrar_btn.setGeometry(self.width() - 35, 10, 25, 25)
 
         super().resizeEvent(event)

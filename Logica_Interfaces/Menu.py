@@ -5,17 +5,25 @@ import pyodbc
 import os
 
 from Diseño_Interfaces.Menu import Menu
+from Diseño_Interfaces.Kardex import Kardex
 
 class MenuLogic(Menu):
     def __init__(self, num_control):
         super().__init__()
         self.num_control = num_control
         self.cargar_datos_alumno()
+        self.btn_kardex.clicked.connect(self.abrir_kardex)
+        
+    def abrir_kardex(self):
+        self.ventana_kardex = Kardex(self.num_control)
+        self.ventana_kardex.show()   
+        self.close()                 
+
 
     def conectar_sql(self):
         return pyodbc.connect(
             'DRIVER={ODBC Driver 17 for SQL Server};'
-            'SERVER=DESKTOP-33OLAEM\SQLEXPRESS;'
+            'SERVER=DESKTOP-33OLAEM\\SQLEXPRESS;'
             'DATABASE=PruebaDB;'
             'Trusted_Connection=yes;'
         )
