@@ -19,6 +19,12 @@ VALUES ('23212002', 'Urabe Mikoto', 2, 'Ing. en Sistemas Computaciones', 'panfil
 INSERT INTO Alumnos (Num_control, Nombre, Semestre, Carrera, Contrase�a_hash, Foto)
 VALUES ('23211907', 'Samuel "Galleta"', 5, 'Ing. en Sistemas Computaciones', 'galleta', 'img/galleta.jpeg');
 
+INSERT INTO Alumnos (Num_control, Nombre, Semestre, Carrera, Contraseña_hash, Foto)
+VALUES ('23212005', 'Ryuko', 3, 'Ing. en Sistemas Computaciones', 'kill', 'img/Ryukio.jpg');
+
+DELETE FROM Alumnos
+WHERE Num_control = 23212005;
+
 CREATE TABLE Materias (
   Serie VARCHAR(20) PRIMARY KEY,
   Nombre NVARCHAR(100),
@@ -127,8 +133,175 @@ INSERT INTO Kardex (Num_control, Serie, Calificacion, Estatus) VALUES
 ('23212002', 'ACA-0907', 89, 'APROBADA'),  
 ('23212002', 'AEF-1041', 93, 'APROBADA');  
 
+SELECT * FROM Kardex
+-- ryuko prueba
+INSERT INTO Kardex (Num_control, Serie, Calificacion, Estatus) VALUES
+('23212005', 'ACF-0901', 97, 'APROBADA'),  
+('23212005', 'AED-1285', 91, 'APROBADA'),  
+('23212005', 'ACC-0906', 79, 'APROBADA'),  
+('23212005', 'SCH-1024', 78, 'APROBADA'),  
+('23212005', 'ACA-0907', 98, 'APROBADA'),  
+('23212005', 'AEF-1041', 93, 'APROBADA'),  
+
+('23212005', 'ACF-0902', 97, 'APROBADA'),  
+('23212005', 'AED-1286', 99, 'APROBADA'),  
+('23212005', 'ACF-0903', 79, 'APROBADA'),  
+('23212005', 'SCC-1005', 80, 'APROBADA'),  
+('23212005', 'AEF-1052', 89, 'APROBADA'),  
+('23212005', 'SCF-1006', 93, 'APROBADA');  
+------------------------
+-- Estructura para hacer la carga de materias muejeje
+
+CREATE TABLE Periodos (
+    Id_periodo INT IDENTITY(1,1) PRIMARY KEY,
+    Periodo_texto VARCHAR(10) NOT NULL UNIQUE,   -- '2025-2'
+    Nombre_periodo NVARCHAR(50),
+    Activo BIT DEFAULT 0                         
+);
+
+CREATE TABLE Grupos (
+    Id_grupo INT IDENTITY(1,1) PRIMARY KEY,
+    Id_periodo INT NOT NULL,
+    Serie_materia VARCHAR(20) NOT NULL,
+    Grupo_letra CHAR(1) NOT NULL CHECK (Grupo_letra IN ('A','B','C','D')),
+    Cupo_maximo INT DEFAULT 40,
+    Cupo_actual INT DEFAULT 0,
+    Aula NVARCHAR(20),
+    FOREIGN KEY (Id_periodo) REFERENCES Periodos(Id_periodo),
+    FOREIGN KEY (Serie_materia) REFERENCES Materias(Serie),
+    UNIQUE (Id_periodo, Serie_materia, Grupo_letra)
+);
+
+CREATE TABLE Horario_Grupo (
+    Id_horario INT IDENTITY(1,1) PRIMARY KEY,
+    Id_grupo INT NOT NULL,
+    Dia_semana VARCHAR(10) NOT NULL CHECK (Dia_semana IN ('Lunes','Martes','Miércoles','Jueves','Viernes')),
+    Hora_inicio TIME NOT NULL,
+    Hora_fin TIME NOT NULL,
+    FOREIGN KEY (Id_grupo) REFERENCES Grupos(Id_grupo)
+);
+
+CREATE TABLE Inscripciones (
+    Id_inscripcion INT IDENTITY(1,1) PRIMARY KEY,
+    Num_control CHAR(8) NOT NULL,
+    Id_grupo INT NOT NULL,
+    Fecha_inscripcion DATETIME DEFAULT GETDATE(),
+    Estado NVARCHAR(20) DEFAULT 'INSCRITO',
+    FOREIGN KEY (Num_control) REFERENCES Alumnos(Num_control),
+    FOREIGN KEY (Id_grupo) REFERENCES Grupos(Id_grupo),
+    UNIQUE (Num_control, Id_grupo)
+);
+
+
+CREATE TRIGGER TR_Inscribir_Auto_Cursando
+ON Inscripciones
+AFTER INSERT
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    INSERT INTO Kardex (Num_control, Serie, Calificacion, Estatus)
+    SELECT 
+        i.Num_control, 
+        g.Serie_materia, 
+        0.00, 
+        'CURSANDO'
+    FROM inserted i
+    JOIN Grupos g ON i.Id_grupo = g.Id_grupo
+    WHERE NOT EXISTS (   
+        SELECT 1 
+        FROM Kardex k 
+        WHERE k.Num_control = i.Num_control 
+          AND k.Serie = g.Serie_materia 
+          AND k.Estatus = 'CURSANDO'
+    );
+END
+GO
+
+USE PruebaDB
+GO
+
+-- 1. PERIODO ACTIVO 2025-2
+IF NOT EXISTS (SELECT 1 FROM Periodos WHERE Periodo_texto = '2025-2')
+BEGIN
+    INSERT INTO Periodos (Periodo_texto, Nombre_periodo, Activo)
+    VALUES ('2025-2', 'Agosto-Diciembre 2025', 1);
+END
+GO
+
+DECLARE @id_periodo INT = (SELECT Id_periodo FROM Periodos WHERE Activo = 1);
+
+DECLARE @serie VARCHAR(20), @creditos INT, @aula_base NVARCHAR(20);
+DECLARE cur CURSOR FOR
+SELECT Serie, Creditos FROM Materias ORDER BY Semestre;
+OPEN cur;
+FETCH NEXT FROM cur INTO @serie, @creditos;
+
+WHILE @@FETCH_STATUS = 0
+BEGIN
+    -- 4 grupos por materia
+    INSERT INTO Grupos (Id_periodo, Serie_materia, Grupo_letra, Cupo_maximo, Aula)
+    VALUES 
+    (@id_periodo, @serie, 'A', 40, 'B-101'),
+    (@id_periodo, @serie, 'B', 40, 'B-102'),
+    (@id_periodo, @serie, 'C', 40, 'B-103'),
+    (@id_periodo, @serie, 'D', 40, 'B-104');
+
+    DECLARE @id_grupo_A INT = SCOPE_IDENTITY() - 3;
+    DECLARE @id_grupo_B INT = SCOPE_IDENTITY() - 2;
+    DECLARE @id_grupo_C INT = SCOPE_IDENTITY() - 1;
+    DECLARE @id_grupo_D INT = SCOPE_IDENTITY();
+
+    -- Horarios según créditos
+    IF @creditos = 5 OR @creditos = 10
+    BEGIN
+        -- 5 créditos Lunes a Viernes
+        INSERT INTO Horario_Grupo (Id_grupo, Dia_semana, Hora_inicio, Hora_fin) VALUES
+        -- Grupo A
+        (@id_grupo_A,'Lunes','07:00','08:50'),(@id_grupo_A,'Martes','07:00','08:50'),(@id_grupo_A,'Miércoles','07:00','08:50'),(@id_grupo_A,'Jueves','07:00','08:50'),(@id_grupo_A,'Viernes','07:00','08:50'),
+        -- Grupo B
+        (@id_grupo_B,'Lunes','09:00','10:50'),(@id_grupo_B,'Martes','09:00','10:50'),(@id_grupo_B,'Miércoles','09:00','10:50'),(@id_grupo_B,'Jueves','09:00','10:50'),(@id_grupo_B,'Viernes','09:00','10:50'),
+        -- Grupo C
+        (@id_grupo_C,'Lunes','11:00','12:50'),(@id_grupo_C,'Martes','11:00','12:50'),(@id_grupo_C,'Miércoles','11:00','12:50'),(@id_grupo_C,'Jueves','11:00','12:50'),(@id_grupo_C,'Viernes','11:00','12:50'),
+        -- Grupo D
+        (@id_grupo_D,'Lunes','15:00','16:50'),(@id_grupo_D,'Martes','15:00','16:50'),(@id_grupo_D,'Miércoles','15:00','16:50'),(@id_grupo_D,'Jueves','15:00','16:50'),(@id_grupo_D,'Viernes','15:00','16:50');
+    END
+    ELSE
+    BEGIN
+        -- 4 créditos Lunes a Jueves
+        INSERT INTO Horario_Grupo (Id_grupo, Dia_semana, Hora_inicio, Hora_fin) VALUES
+        -- Grupo A
+        (@id_grupo_A,'Lunes','07:00','08:50'),(@id_grupo_A,'Martes','07:00','08:50'),(@id_grupo_A,'Miércoles','07:00','08:50'),(@id_grupo_A,'Jueves','07:00','08:50'),
+        -- Grupo B
+        (@id_grupo_B,'Lunes','09:00','10:50'),(@id_grupo_B,'Martes','09:00','10:50'),(@id_grupo_B,'Miércoles','09:00','10:50'),(@id_grupo_B,'Jueves','09:00','10:50'),
+        -- Grupo C
+        (@id_grupo_C,'Lunes','11:00','12:50'),(@id_grupo_C,'Martes','11:00','12:50'),(@id_grupo_C,'Miércoles','11:00','12:50'),(@id_grupo_C,'Jueves','11:00','12:50'),
+        -- Grupo D
+        (@id_grupo_D,'Lunes','15:00','16:50'),(@id_grupo_D,'Martes','15:00','16:50'),(@id_grupo_D,'Miércoles','15:00','16:50'),(@id_grupo_D,'Jueves','15:00','16:50');
+    END
+
+    FETCH NEXT FROM cur INTO @serie, @creditos;
+END
+CLOSE cur;
+DEALLOCATE cur;
+GO
+
+-- SERVICIO SOCIAL 
+UPDATE Grupos SET Aula = 'Lab-Red' WHERE Serie_materia = '4SC9';
+UPDATE Horario_Grupo SET Hora_inicio = '07:00', Hora_fin = '11:00' WHERE Id_grupo IN (SELECT Id_grupo FROM Grupos WHERE Serie_materia = '4SC9');
+
+
+
+
 SELECT * FROM Materias
 SELECT *FROM Kardex
+SELECT * FROM Alumnos
+SELECT * FROM Periodos
+SELECT * FROM Inscripciones
+DELETE FROM Inscripciones
+SELECT COUNT (*) AS Total_Grupos FROM Grupos
+SELECT * FROM PlantillaHorarios
+
 --DELETE FROM Alumnos
 --WHERE Num_control = 23211907;
 -- id materias

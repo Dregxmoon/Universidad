@@ -3,7 +3,6 @@ import pyodbc
 
 from Diseño_Interfaces.login import LoginWindow
 from Logica_Interfaces.Menu import MenuLogic
-
 # conexión con SQL Server
 def conectar_sql():
     return pyodbc.connect(
@@ -64,3 +63,6 @@ if __name__ == "__main__":
     ventana = LoginLogic()
     ventana.show()
     sys.exit(app.exec_())
+
+
+    
