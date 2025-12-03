@@ -1,734 +1,638 @@
 import pyodbc
-from PyQt5.QtWidgets import (
-    QMessageBox, QTreeWidgetItem, QTableWidgetItem
-)
+from PyQt5.QtWidgets import QMessageBox, QTreeWidgetItem, QTableWidgetItem
 from PyQt5.QtGui import QColor, QFont
 from PyQt5.QtCore import Qt
+
 from Diseño_Interfaces.CargaMaterias import CargaMaterias
-from reportlab.pdfgen import canvas
-from reportlab.lib.pagesizes import letter
-from datetime import datetime
-import os
 
 
 class CargaMateriasLogic(CargaMaterias):
+    """
+    Esta clase controla TODO el sistema de carga de materias.
+    Aquí se maneja:
+    - Lectura de materias disponibles
+    - Carga por paquete
+    - Paquetes personalizados
+    - Reprobadas
+    - Adelantables
+    - Choques de horario
+    - Registro en BD
+    """
+
+    MAX_PKG_SIZE = 6
+    MAX_PERSONALIZED = 4
+
     def __init__(self, num_control):
         super().__init__()
         self.num_control = num_control
         self.selecciones = {}        
         self.horario_ocupado = set() 
+        self.personalizados = []     
 
-        # Conectar señales (tree usado tanto para paquetes como para materias/grupos)
+        # conexion de los botones a sus funciones
         self.tree_materias.itemClicked.connect(self._on_tree_item_clicked)
-        self.btn_carga_paquete.clicked.connect(self.carga_automatica_paquete)
+        self.btn_limpiar.clicked.connect(self.limpiar_todo)
+        self.btn_eliminar_carga.clicked.connect(self.eliminar_carga_bd)
         self.btn_finalizar.clicked.connect(self.finalizar_carga)
+
         self.cargar_materias_disponibles()
 
+    # conexion a la base de datos
     def conectar(self):
         return pyodbc.connect(
-            r'DRIVER={ODBC Driver 17 for SQL Server};'
-            r'SERVER=DESKTOP-33OLAEM\SQLEXPRESS;'
-            r'DATABASE=PruebaDB;'
-            r'Trusted_Connection=yes;'
+            'DRIVER={ODBC Driver 17 for SQL Server};'
+            'SERVER=tcp:localhost,1433;'
+            'DATABASE=PruebaDB;'
+            'Trusted_Connection=yes;'
         )
 
+    # carga
     def cargar_materias_disponibles(self):
+        #es el panel izquierdo con las opciones de paquetes
+        # materias adelantables, reprobadas etc
         conn = self.conectar()
-        cursor = conn.cursor()
+        cur = conn.cursor()
 
-        # Obtener semestre
-        cursor.execute("SELECT Semestre FROM Alumnos WHERE Num_control = ?", (self.num_control,))
-        row = cursor.fetchone()
+        # semestre del alumno (tomando este dato sabemos que matereias debe cursar)
+        cur.execute("SELECT Semestre FROM Alumnos WHERE Num_control=?", (self.num_control,))
+        row = cur.fetchone()
         if not row:
-            QMessageBox.critical(self, "Error", "Alumno no encontrado.")
-            conn.close()
             return
         semestre = row[0]
 
-        cursor.execute("SELECT Id_periodo FROM Periodos WHERE Activo = 1")
-        periodo_row = cursor.fetchone()
-        if not periodo_row:
-            QMessageBox.critical(self, "ERROR", "No existe período activo.")
-            conn.close()
-            return
-        periodo_id = periodo_row[0]
+        # periodo activo
+        cur.execute("SELECT Id_periodo FROM Periodos WHERE Activo=1")
+        periodo_id = cur.fetchone()[0]
 
-        # materias reprobadas para paquete personalizado 
-        cursor.execute("""
-            SELECT Serie
-            FROM Kardex
-            WHERE Num_control = ? AND Estatus = 'REPROBADA'
+        # extraemos las materias reprobadas del alumno mediante
+        # el kardex que estan registradas como REPROBADA
+        cur.execute("""
+            SELECT m.Serie, m.Nombre, m.Creditos
+            FROM Kardex k JOIN Materias m ON k.Serie=m.Serie
+            WHERE k.Num_control=? AND k.Estatus='REPROBADA'
         """, (self.num_control,))
-        reprobadas_rows = cursor.fetchall()
-        reprobadas = [r[0] for r in reprobadas_rows] if reprobadas_rows else []
+        materias_rep = cur.fetchall()
 
         self.tree_materias.clear()
-        nodo_paquetes = QTreeWidgetItem(["PAQUETES"])
-        nodo_paquetes.setBackground(0, QColor("#cfe9ff"))
-        fontp = QFont(); fontp.setBold(True)
-        nodo_paquetes.setFont(0, fontp)
-        self.tree_materias.addTopLevelItem(nodo_paquetes)
+        self.personalizados = []
 
-        cursor.execute("""
-            SELECT Serie, Nombre FROM Materias
-            WHERE Semestre = ?
-            ORDER BY Serie
-        """, (semestre,))
-        materias_sem = cursor.fetchall() 
+        # Paquete regular
+        nodo_paq = self._crear_nodo("PAQUETES", "#cfe9ff")
+        materias_semestre = self._get_materias_semestre(cur, semestre)
 
-        paquetes = {'A': [], 'B': [], 'C': [], 'D': []}
-        for idx, (serie, nombre) in enumerate(materias_sem, start=1):
-            p_index = ((idx-1) // 6)  # 0 -> A, 1 -> B, 2 -> C, 3 -> D, etc.
-            if p_index == 0:
-                paquetes['A'].append((serie, nombre, idx))
-            elif p_index == 1:
-                paquetes['B'].append((serie, nombre, idx))
-            elif p_index == 2:
-                paquetes['C'].append((serie, nombre, idx))
-            else:
-                paquetes['D'].append((serie, nombre, idx))
+        paquetes = self._separar_paquetes(materias_semestre)
 
         for letra, lista in paquetes.items():
-            paq_item = QTreeWidgetItem([f"Paquete {letra}"])
-            paq_item.setData(0, Qt.UserRole, f"PAQUETE:{letra}")
-            paq_item.setBackground(0, QColor("#b3e5fc"))
-            nodo_paquetes.addChild(paq_item)
-
-            for serie, nombre, orden in lista:
-                cursor.execute("""
-                    SELECT TOP 1 h.Hora_inicio, h.Hora_fin
-                    FROM Grupos g
-                    JOIN Horario_Grupo h ON g.Id_grupo = h.Id_grupo
-                    WHERE g.Serie_materia = ? AND g.Grupo_letra = ? AND g.Id_periodo = ?
-                    ORDER BY h.Hora_inicio
-                """, (serie, letra, periodo_id))
-                hora_row = cursor.fetchone()
-                if hora_row:
-                    ini, fin = hora_row
-                    try:
-                        hora_txt = f"{ini.strftime('%H:%M')}–{fin.strftime('%H:%M')}"
-                    except Exception:
-                        hora_txt = "--:--"
-                else:
-                    hora_txt = "--:--"
-
-                sub = QTreeWidgetItem([f"   • {serie} - {nombre}  —  {hora_txt}"])
+            item_paq = self._crear_item_paquete(letra, nodo_paq)
+            for serie, nombre in lista:
+                hora_txt = self._hora_representativa(cur, serie, letra, periodo_id)
+                sub = QTreeWidgetItem([f"   • {serie} - {nombre} — {hora_txt}"])
                 sub.setFlags(sub.flags() & ~Qt.ItemIsSelectable)
-                paq_item.addChild(sub)
+                item_paq.addChild(sub)
 
-        # Si el alumno tiene reprobadas, creamos el nodo PERSONALIZADO
-        if reprobadas:
-            pers_item = QTreeWidgetItem([f"PAQUETE PERSONALIZADO"])
-            pers_item.setData(0, Qt.UserRole, "PAQUETE:PERS")
-            pers_item.setBackground(0, QColor("#ffd7a6"))
-            fontp2 = QFont(); fontp2.setBold(True)
-            pers_item.setFont(0, fontp2)
-            nodo_paquetes.addChild(pers_item)
+        # paquetes personalizados
+        if materias_rep:
+            objetivo = self._armar_objetivo(cur, semestre, materias_rep)
+            paquetes_personalizados = self._generar_paquetes_personalizados(objetivo, periodo_id, cur)
 
-            for serie in reprobadas:
-                cursor.execute("SELECT Nombre FROM Materias WHERE Serie = ?", (serie,))
-                r = cursor.fetchone()
-                nombre_r = r[0] if r else serie
+            if paquetes_personalizados:
+                nodo_pers = self._crear_nodo("PAQUETES PERSONALIZADOS", "#ffd7a6")
+                self.personalizados = paquetes_personalizados
 
-                # buscar hora 
-                cursor.execute("""
-                    SELECT TOP 1 h.Hora_inicio, h.Hora_fin
-                    FROM Grupos g
-                    JOIN Horario_Grupo h ON g.Id_grupo = h.Id_grupo
-                    WHERE g.Serie_materia = ? AND g.Id_periodo = ?
-                    ORDER BY h.Hora_inicio
-                """, (serie, periodo_id))
-                hora_row = cursor.fetchone()
-                if hora_row:
-                    try:
-                        hora_txt = f"{hora_row[0].strftime('%H:%M')}–{hora_row[1].strftime('%H:%M')}"
-                    except Exception:
-                        hora_txt = "--:--"
-                else:
-                    hora_txt = "--:--"
+                for i, paquete in enumerate(paquetes_personalizados):
+                    letra_pers = chr(ord("A") + i)
+                    nodo = QTreeWidgetItem([f"Paquete Personalizado {letra_pers}"])
+                    nodo.setData(0, Qt.UserRole, f"PAQUETE:PERS_IDX:{i}")
+                    nodo.setBackground(0, QColor("#ffcc99"))
+                    nodo_pers.addChild(nodo)
 
-                sub = QTreeWidgetItem([f"   • {serie} - {nombre_r}  —  {hora_txt}"])
-                sub.setFlags(sub.flags() & ~Qt.ItemIsSelectable)
-                pers_item.addChild(sub)
+                    for serie, nombre, grp, horas in paquete['detalle']:
+                        txt = f"   • {serie} - {nombre} → Grupo {grp} — {horas}"
+                        sub = QTreeWidgetItem([txt])
+                        sub.setFlags(sub.flags() & ~Qt.ItemIsSelectable)
+                        nodo.addChild(sub)
 
-            # Luego, las materias del semestre disponibilidad
-            cursor.execute("""
-                SELECT m.Serie, m.Nombre, m.Creditos
-                FROM Materias m
-                WHERE m.Semestre = ?
-                  AND (m.Seriada IS NULL OR m.Seriada IN (
-                      SELECT Serie FROM Kardex WHERE Num_control = ? AND Estatus = 'APROBADA'
+        # mostrara en el panel las materias que reprobo con sus opciones de
+        # grupos y horario
+        if materias_rep:
+            nodo_rep = self._crear_nodo("MATERIAS REPROBADAS", "#ffe0e0")
+            for serie, nombre, cred in materias_rep:
+                item = QTreeWidgetItem([f"{serie} - {nombre} ({cred} créditos)"])
+                item.setBackground(0, QColor("#ffd9d9"))
+                nodo_rep.addChild(item)
+                self._insertar_grupos(cur, item, serie, periodo_id)
+
+        # panel izquierdo donde extraemos de la base de datos las materias que deberia
+        # cursar el alumno
+        cur.execute("""
+            SELECT Serie, Nombre, Creditos
+            FROM Materias
+            WHERE Semestre=? 
+              AND (Seriada IS NULL OR Seriada IN (
+                     SELECT Serie FROM Kardex WHERE Num_control=? AND Estatus='APROBADA'
                   ))
-                  AND m.Serie NOT IN (
-                      SELECT Serie FROM Kardex WHERE Num_control = ?
-                      AND (Estatus = 'APROBADA' OR Estatus = 'CURSANDO')
+              AND Serie NOT IN (
+                     SELECT Serie FROM Kardex 
+                     WHERE Num_control=? AND (Estatus='APROBADA' OR Estatus='CURSANDO')
                   )
-                ORDER BY m.Serie
-            """, (semestre, self.num_control, self.num_control))
-            sem_mats = cursor.fetchall()
-            for serie_s, nombre_s, cred in sem_mats:
-                if serie_s in reprobadas:
-                    continue
-                cursor.execute("""
-                    SELECT TOP 1 h.Hora_inicio, h.Hora_fin
-                    FROM Grupos g
-                    JOIN Horario_Grupo h ON g.Id_grupo = h.Id_grupo
-                    WHERE g.Serie_materia = ? AND g.Id_periodo = ?
-                    ORDER BY h.Hora_inicio
-                """, (serie_s, periodo_id))
-                hora_row = cursor.fetchone()
-                if hora_row:
-                    try:
-                        hora_txt = f"{hora_row[0].strftime('%H:%M')}–{hora_row[1].strftime('%H:%M')}"
-                    except Exception:
-                        hora_txt = "--:--"
-                else:
-                    hora_txt = "--:--"
+            ORDER BY Serie
+        """, (semestre, self.num_control, self.num_control))
+        materias_sem = cur.fetchall()
 
-                sub = QTreeWidgetItem([f"   • {serie_s} - {nombre_s}  —  {hora_txt}"])
-                sub.setFlags(sub.flags() & ~Qt.ItemIsSelectable)
-                pers_item.addChild(sub)
+        if materias_sem:
+            nodo_sem = self._crear_nodo("MATERIAS DEL SEMESTRE", "#e7ffe7")
+            for serie, nombre, cred in materias_sem:
+                item = QTreeWidgetItem([f"{serie} - {nombre} ({cred} créditos)"])
+                nodo_sem.addChild(item)
+                self._insertar_grupos(cur, item, serie, periodo_id)
 
-            pers_item.setExpanded(False)
-
-        nodo_paquetes.setExpanded(True)
-
-        # materias disponibles 
-        query = """
-        SELECT m.Serie, m.Nombre, m.Creditos
-        FROM Materias m
-        WHERE m.Semestre = ?
-          AND (m.Seriada IS NULL OR m.Seriada IN (
-              SELECT Serie FROM Kardex WHERE Num_control = ? AND Estatus = 'APROBADA'
-          ))
-          AND m.Serie NOT IN (
-              SELECT Serie FROM Kardex WHERE Num_control = ?
-              AND (Estatus = 'APROBADA' OR Estatus = 'CURSANDO')
-          )
-        ORDER BY m.Serie
-        """
-        cursor.execute(query, (semestre, self.num_control, self.num_control))
-        materias = cursor.fetchall()
-
-        for serie, nombre, creditos in materias:
-
-            item_materia = QTreeWidgetItem([f"{serie} - {nombre} ({creditos} créditos)"])
-            item_materia.setBackground(0, QColor("#e8f5e9"))
-            font = QFont(); font.setBold(True)
-            item_materia.setFont(0, font)
-            self.tree_materias.addTopLevelItem(item_materia)
-
-            cursor.execute("""
-                SELECT g.Id_grupo, g.Grupo_letra, g.Cupo_actual, g.Cupo_maximo
-                FROM Grupos g
-                WHERE g.Serie_materia = ?
-                  AND g.Id_periodo = ?
-                ORDER BY g.Grupo_letra
-            """, (serie, periodo_id))
-
-            for id_grupo, letra, actual, maximo in cursor.fetchall():
-                lleno = actual >= maximo
-                color = "#a5d6a7" if not lleno else "#ff8a80"
-
-                cursor.execute("""
-                    SELECT TOP 1 Hora_inicio, Hora_fin
-                    FROM Horario_Grupo
-                    WHERE Id_grupo = ?
-                    ORDER BY Hora_inicio
-                """, (id_grupo,))
-                hora_row = cursor.fetchone()
-                horario_text = ""
-                if hora_row:
-                    ini, fin = hora_row
-                    try:
-                        horario_text = f" — {ini.strftime('%H:%M')}–{fin.strftime('%H:%M')}"
-                    except Exception:
-                        horario_text = ""
-
-                text_grupo = f"   Grupo {letra} → Cupo: {actual}/{maximo}{horario_text}"
-                item_grupo = QTreeWidgetItem([text_grupo])
-                item_grupo.setData(0, Qt.UserRole, id_grupo)
-                item_grupo.setBackground(0, QColor(color))
-
-                if lleno:
-                    item_grupo.setFlags(item_grupo.flags() & ~Qt.ItemIsEnabled)
-
-                item_materia.addChild(item_grupo)
-
-            item_materia.setExpanded(False)
-
-        # MATERIAS ADELANTABLES
-        cursor.execute("""
-            SELECT m.Serie, m.Nombre, m.Creditos
-            FROM Materias m
-            WHERE m.Semestre > ?
-              AND m.Seriada IS NULL
-              AND m.Serie NOT IN (
-                  SELECT Serie FROM Kardex
-                  WHERE Num_control = ?
-                    AND (Estatus = 'APROBADA' OR Estatus = 'CURSANDO')
+        # un poco de lo mismo en el panel izquierdo aqui se mostraran la materias
+        # que el alumno puede adelantar osea que no necesitan estar seriadas
+        cur.execute("""
+            SELECT Serie, Nombre, Creditos
+            FROM Materias
+            WHERE Semestre>? 
+              AND Seriada IS NULL
+              AND Serie NOT IN (
+                SELECT Serie FROM Kardex WHERE Num_control=?
               )
-            ORDER BY m.Semestre, m.Serie
+            ORDER BY Semestre, Serie
         """, (semestre, self.num_control))
-
-        adelantables = cursor.fetchall()
+        adelantables = cur.fetchall()
 
         if adelantables:
-            nodo_adelante = QTreeWidgetItem(["MATERIAS ADELANTABLES"])
-            font_a = QFont(); font_a.setBold(True)
-            nodo_adelante.setFont(0, font_a)
-            nodo_adelante.setBackground(0, QColor("#fff4ce"))
-            self.tree_materias.addTopLevelItem(nodo_adelante)
-
-            for serie, nombre, creditos in adelantables:
-                item_mat = QTreeWidgetItem([f"{serie} - {nombre} ({creditos} créditos)"])
-                item_mat.setBackground(0, QColor("#fffbe6"))
-                nodo_adelante.addChild(item_mat)
-
-                # grupos disponibles
-                cursor.execute("""
-                    SELECT g.Id_grupo, g.Grupo_letra, g.Cupo_actual, g.Cupo_maximo
-                    FROM Grupos g
-                    WHERE g.Serie_materia = ?
-                      AND g.Id_periodo = ?
-                    ORDER BY g.Grupo_letra
-                """, (serie, periodo_id))
-
-                for idg, letra, cupo_a, cupo_m in cursor.fetchall():
-                    lleno = cupo_a >= cupo_m
-                    color = "#dcedc8" if not lleno else "#ffcdd2"
-
-                    cursor.execute("""
-                        SELECT TOP 1 Hora_inicio, Hora_fin
-                        FROM Horario_Grupo
-                        WHERE Id_grupo = ?
-                        ORDER BY Hora_inicio
-                    """, (idg,))
-                    hrow = cursor.fetchone()
-                    hora_txt = ""
-                    if hrow:
-                        try:
-                            hora_txt = f" — {hrow[0].strftime('%H:%M')}–{hrow[1].strftime('%H:%M')}"
-                        except Exception:
-                            hora_txt = ""
-
-                    child = QTreeWidgetItem([f"   Grupo {letra} — {cupo_a}/{cupo_m}{hora_txt}"])
-                    child.setData(0, Qt.UserRole, idg)
-                    child.setBackground(0, QColor(color))
-
-                    if lleno:
-                        child.setFlags(child.flags() & ~Qt.ItemIsEnabled)
-
-                    item_mat.addChild(child)
-
-            nodo_adelante.setExpanded(False)
+            nodo_ad = self._crear_nodo("MATERIAS ADELANTABLES", "#fff4ce")
+            for serie, nombre, cred in adelantables:
+                item = QTreeWidgetItem([f"{serie} - {nombre} ({cred} créditos)"])
+                nodo_ad.addChild(item)
+                self._insertar_grupos(cur, item, serie, periodo_id)
 
         conn.close()
+    
+    def _crear_nodo(self, texto, color):
+        nodo = QTreeWidgetItem([texto])
+        nodo.setBackground(0, QColor(color))
+        f = QFont(); f.setBold(True)
+        nodo.setFont(0, f)
+        self.tree_materias.addTopLevelItem(nodo)
+        return nodo
 
-    def _on_tree_item_clicked(self, item, column):
-        data = item.data(0, Qt.UserRole)
-        if isinstance(data, str) and data.startswith("PAQUETE:"):
-            tag = data.split(":")[1]
-            if tag == "PERS":
-                self.aplicar_paquete_personalizado()
-            else:
-                self.aplicar_paquete(tag)
-            return
+    def _crear_item_paquete(self, letra, nodo):
+        item = QTreeWidgetItem([f"Paquete {letra}"])
+        item.setData(0, Qt.UserRole, f"PAQUETE:{letra}")
+        item.setBackground(0, QColor("#b3e5fc"))
+        nodo.addChild(item)
+        return item
 
-        if data is None:
-            return
+    def _hora_representativa(self, cur, serie, letra, periodo_id):
+        cur.execute("""
+            SELECT TOP 1 Hora_inicio, Hora_fin
+            FROM Grupos g JOIN Horario_Grupo h ON g.Id_grupo=h.Id_grupo
+            WHERE Serie_materia=? AND Grupo_letra=? AND Id_periodo=?
+            ORDER BY Hora_inicio
+        """, (serie, letra, periodo_id))
+        r = cur.fetchone()
+        if not r:
+            return "--:--"
         try:
-            id_grupo = int(data)
-        except Exception:
-            return
-        parent = item.parent()
-        if not parent:
-            return
-        serie = parent.text(0).split(" - ")[0]
-        if serie in self.selecciones and self.selecciones[serie] == id_grupo:
-            del self.selecciones[serie]
-        else:
-            self.selecciones[serie] = id_grupo
-        self.actualizar_horario()
+            return f"{r[0].strftime('%H:%M')}–{r[1].strftime('%H:%M')}"
+        except:
+            return "--:--"
 
-    def aplicar_paquete(self, letra_paquete: str):
+    def _get_materias_semestre(self, cur, semestre):
+        cur.execute("SELECT Serie, Nombre FROM Materias WHERE Semestre=? ORDER BY Serie", (semestre,))
+        return cur.fetchall()
+
+    def _separar_paquetes(self, materias):
         """
-        Intenta seleccionar para el alumno las materias del semestre tomando
-        el grupo cuya letra coincide con letra_paquete.
-        Respeta cupo y evita choques de horario.
+        Divide las materias de semestre en 4 paquetes de máximo 6 materias.
         """
-        conn = self.conectar()
-        cursor = conn.cursor()
+        paq = {"A": [], "B": [], "C": [], "D": []}
+        for i, row in enumerate(materias):
+            idx = (i // 6)
+            letra = ["A", "B", "C", "D"][min(idx, 3)]
+            paq[letra].append(row)
+        return paq
 
-        cursor.execute("SELECT Semestre FROM Alumnos WHERE Num_control = ?", (self.num_control,))
-        row = cursor.fetchone()
-        if not row:
-            QMessageBox.critical(self, "Error", "Alumno no encontrado.")
-            conn.close()
-            return
-        semestre = row[0]
+    def _insertar_grupos(self, cur, item_mat, serie, periodo_id):
+        """Inserta los grupos y el horario dentro de un item de materia."""
+        cur.execute("""
+            SELECT Id_grupo, Grupo_letra, Cupo_actual, Cupo_maximo
+            FROM Grupos
+            WHERE Serie_materia=? AND Id_periodo=?
+            ORDER BY Grupo_letra
+        """, (serie, periodo_id))
 
-        cursor.execute("SELECT Id_periodo FROM Periodos WHERE Activo = 1")
-        periodo_row = cursor.fetchone()
-        if not periodo_row:
-            QMessageBox.critical(self, "ERROR", "No existe período activo.")
-            conn.close()
-            return
-        periodo_id = periodo_row[0]
+        for idg, letra, cup_a, cup_m in cur.fetchall():
 
-        cursor.execute("""
-            SELECT m.Serie, m.Nombre
-            FROM Materias m
-            WHERE m.Semestre = ?
-              AND (m.Seriada IS NULL OR m.Seriada IN (
-                  SELECT Serie FROM Kardex WHERE Num_control = ? AND Estatus = 'APROBADA'
-              ))
-              AND m.Serie NOT IN (
-                  SELECT Serie FROM Kardex WHERE Num_control = ?
-                  AND (Estatus = 'APROBADA' OR Estatus = 'CURSANDO')
-              )
-            ORDER BY m.Serie
-        """, (semestre, self.num_control, self.num_control))
+            hora_txt = self._hora_representativa(cur, serie, letra, periodo_id)
+            item_grupo = QTreeWidgetItem([f"   Grupo {letra} → {cup_a}/{cup_m} {hora_txt}"])
+            item_grupo.setData(0, Qt.UserRole, idg)
+            item_mat.addChild(item_grupo)
 
-        materias = cursor.fetchall()
-
-        seleccionadas = 0
-        saltadas_cupo = 0
-        saltadas_choque = 0
-        saltadas_no_grupo = 0
-
-        self.selecciones.clear()
-        self.horario_ocupado.clear()
-
-        for serie, nombre in materias:
-            cursor.execute("""
-                SELECT Id_grupo, Cupo_actual, Cupo_maximo
-                FROM Grupos
-                WHERE Serie_materia = ? AND Id_periodo = ? AND Grupo_letra = ?
-            """, (serie, periodo_id, letra_paquete))
-            grp = cursor.fetchone()
-            if not grp:
-                saltadas_no_grupo += 1
-                continue
-            id_grupo, cupo_actual, cupo_maximo = grp
-            if cupo_actual >= cupo_maximo:
-                saltadas_cupo += 1
-                continue
-
-            cursor.execute("""
-                SELECT Dia_semana, Hora_inicio
+            # detalles del horario
+            cur.execute("""
+                SELECT Dia_semana, Hora_inicio, Hora_fin
                 FROM Horario_Grupo
-                WHERE Id_grupo = ?
-            """, (id_grupo,))
-            horarios = cursor.fetchall()
-            choque = False
-            proposed_cells = []
-            for dia, hora in horarios:
-                try:
-                    fila = hora.hour - 7
-                except Exception:
-                    choque = True
-                    break
-                if fila < 0 or fila >= 15:
-                    choque = True
-                    break
-                days = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes"]
-                if dia not in days:
-                    choque = True
-                    break
-                col = days.index(dia) + 1
-                if (fila, col) in self.horario_ocupado:
-                    choque = True
-                    break
-                proposed_cells.append((fila, col))
+                WHERE Id_grupo=?
+                ORDER BY CASE Dia_semana
+                    WHEN 'Lunes' THEN 1 WHEN 'Martes' THEN 2 WHEN 'Miércoles' THEN 3
+                    WHEN 'Jueves' THEN 4 WHEN 'Viernes' THEN 5 END, Hora_inicio
+            """, (idg,))
+            for dia, ini, fin in cur.fetchall():
+                QTreeWidgetItem(item_grupo, [
+                    f"      • {dia} {ini.strftime('%H:%M')} - {fin.strftime('%H:%M')}"
+                ])
 
-            if choque:
-                saltadas_choque += 1
-                continue
+    #
+    # GENERAR PAQUETES PERSONALIZADOS
+    def _armar_objetivo(self, cur, semestre, materias_rep):
+        """Arma la lista de materias objetivo (reprobadas + semestre)."""
+        # como prioridad las reprobadas primero
+        objetivo = [s[0] for s in materias_rep]  
 
-            self.selecciones[serie] = id_grupo
-            for cell in proposed_cells:
-                self.horario_ocupado.add(cell)
-            seleccionadas += 1
-
-        conn.close()
-        # Actualizar el horario 
-        self.actualizar_horario()
-
-    #configuracion de paquetes personalizados
-    def aplicar_paquete_personalizado(self):
-        """
-        Genera automáticamente un paquete para alumnos con materias reprobadas.
-        Regla:
-            - Primero se cargan TODAS las reprobadas
-            - Luego se agregan materias del semestre actual
-            - Máximo 6 materias
-            - Sin choques de horario
-        """
-
-        conn = self.conectar()
-        cursor = conn.cursor()
-        cursor.execute("SELECT Semestre FROM Alumnos WHERE Num_control = ?", (self.num_control,))
-        semestre = cursor.fetchone()[0]
-        cursor.execute("SELECT Id_periodo FROM Periodos WHERE Activo = 1")
-        row = cursor.fetchone()
-        if not row:
-            QMessageBox.critical(self, "Error", "No existe período activo.")
-            conn.close()
-            return
-        periodo_id = row[0]
-
-        # materias reprobadas
-        cursor.execute("""
-            SELECT m.Serie, m.Nombre
-            FROM Kardex k
-            JOIN Materias m ON k.Serie = m.Serie
-            WHERE Num_control = ? AND Estatus = 'REPROBADA'
-        """, (self.num_control,))
-        reprobadas = cursor.fetchall()
-        # materias que se supone debe cursar el alumno
-        cursor.execute("""
-            SELECT m.Serie, m.Nombre
-            FROM Materias m
-            WHERE m.Semestre = ?
-              AND (m.Seriada IS NULL OR m.Seriada IN (
-                    SELECT Serie
-                    FROM Kardex
-                    WHERE Num_control = ? AND Estatus='APROBADA'
+        # materias que sí puede cursar del semestre
+        cur.execute("""
+            SELECT Serie
+            FROM Materias
+            WHERE Semestre=?
+              AND (Seriada IS NULL OR Seriada IN (
+                   SELECT Serie FROM Kardex WHERE Num_control=? AND Estatus='APROBADA'
               ))
-              AND m.Serie NOT IN (
-                    SELECT Serie
-                    FROM Kardex
-                    WHERE Num_control = ? AND (Estatus='APROBADA' OR Estatus='CURSANDO')
+              AND Serie NOT IN (
+                SELECT Serie FROM Kardex 
+                WHERE Num_control=? AND (Estatus='APROBADA' OR Estatus='CURSANDO')
               )
+            ORDER BY Serie
         """, (semestre, self.num_control, self.num_control))
-        materias_semestre = cursor.fetchall()
 
+        for serie, in cur.fetchall():
+            if len(objetivo) < self.MAX_PKG_SIZE and serie not in objetivo:
+                objetivo.append(serie)
 
-        self.selecciones.clear()
-        self.horario_ocupado.clear()
+        return objetivo
 
-        MAX_MATERIAS = 6
-        total_asignadas = 0
+    def _generar_paquetes_personalizados(self, objetivo_series, periodo_id, cur):
+        """
+        Aquí se hace la magia:
+        - Revisamos todos los grupos disponibles por materia
+        - Intentamos combinarlos sin choques
+        - Solo generamos hasta 4 soluciones
+        """
 
+        # obtener opciones de cada materia
+        opciones = {}
+        dias = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes"]
 
-        def intentar_asignar_materia(serie):
-            nonlocal total_asignadas
-
-            if total_asignadas >= MAX_MATERIAS:
-                return False
-
-            # hay espacio?
-            cursor.execute("""
-                SELECT Id_grupo
+        for serie in objetivo_series:
+            cur.execute("""
+                SELECT Id_grupo, Grupo_letra, Cupo_actual, Cupo_maximo
                 FROM Grupos
-                WHERE Serie_materia = ? AND Id_periodo = ? AND Cupo_actual < Cupo_maximo
+                WHERE Serie_materia=? AND Id_periodo=?
                 ORDER BY Grupo_letra
             """, (serie, periodo_id))
-            grupos = cursor.fetchall()
 
-            for (id_grupo,) in grupos:
-
-                # horarios del grupo
-                cursor.execute("""
+            opciones[serie] = []
+            for idg, letra, cup_a, cup_m in cur.fetchall():
+                # sacamos horarios del grupo
+                cur.execute("""
                     SELECT Dia_semana, Hora_inicio, Hora_fin
                     FROM Horario_Grupo
-                    WHERE Id_grupo = ?
-                """, (id_grupo,))
-                horarios = cursor.fetchall()
+                    WHERE Id_grupo=?
+                """, (idg,))
+                horarios = cur.fetchall()
 
-                # hay choques entre materias???
-                choque = False
-                for dia, ini, _ in horarios:
+                celdas = []
+                horas_txt = []
+                valido = True
 
-                    fila = ini.hour - 7
-                    col = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes"].index(dia) + 1
-
-                    if (fila, col) in self.horario_ocupado:
-                        choque = True
+                for dia, ini, fin in horarios:
+                    if dia not in dias:
+                        valido = False
                         break
 
+                    fila = ini.hour - 7
+                    if fila < 0 or fila >= 15:
+                        valido = False
+                        break
+
+                    col = dias.index(dia) + 1
+                    celdas.append((fila, col))
+                    horas_txt.append(f"{dia} {ini.strftime('%H:%M')}-{fin.strftime('%H:%M')}")
+
+                if not valido:
+                    continue
+
+                opciones[serie].append({
+                    "id": idg,
+                    "letra": letra,
+                    "cupo_a": cup_a,
+                    "cupo_m": cup_m,
+                    "celdas": celdas,
+                    "txt": ", ".join(horas_txt)
+                })
+
+        # backtracking para generar hasta 4 paquetes en algunos casos 
+        # forzamos la generacion de paquetes como resultado solo se modifica una materia
+        soluciones = []
+        usado = set()
+        asign = {}
+
+        def dfs(i):
+            if len(soluciones) >= self.MAX_PERSONALIZED:
+                return
+            if i == len(objetivo_series):
+                # armamos paquete completo
+                detalle = []
+                for serie in objetivo_series:
+                    opt = asign[serie]
+                    cur.execute("SELECT Nombre FROM Materias WHERE Serie=?", (serie,))
+                    nombre = cur.fetchone()[0]
+                    detalle.append((serie, nombre, opt["letra"], opt["txt"]))
+
+                soluciones.append({
+                    "mapping": {s: asign[s]["id"] for s in asign},
+                    "detalle": detalle
+                })
+                return
+
+            serie = objetivo_series[i]
+            for opt in opciones.get(serie, []):
+
+                if opt["cupo_a"] >= opt["cupo_m"]:
+                    continue
+
+                choque = any(c in usado for c in opt["celdas"])
                 if choque:
                     continue
 
-                # Si no hay choque
-                self.selecciones[serie] = id_grupo
+                asign[serie] = opt
+                for c in opt["celdas"]:
+                    usado.add(c)
 
-                # Marcar horario ocupado
-                for dia, ini, _ in horarios:
-                    fila = ini.hour - 7
-                    col = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes"].index(dia) + 1
-                    self.horario_ocupado.add((fila, col))
+                dfs(i + 1)
 
-                total_asignadas += 1
-                return True
+                for c in opt["celdas"]:
+                    usado.remove(c)
 
-            return False
+        dfs(0)
+        return soluciones
 
-        # AGREGAR REPROBADAS
-        for serie, _ in reprobadas:
-            intentar_asignar_materia(serie)
+    # EVENTOS "lo relacionado cuando el usuario decide dar click al programa o acciones"
+    def _on_tree_item_clicked(self, item, column):
+        data = item.data(0, Qt.UserRole)
 
-        # MATERIAS DEL SEMESTRE
-        for serie, _ in materias_semestre:
-            if total_asignadas < MAX_MATERIAS:
-                intentar_asignar_materia(serie)
+        # paquete seleccionado
+        if isinstance(data, str) and data.startswith("PAQUETE:"):
+            parts = data.split(":")
+            if parts[1] == "PERS_IDX":
+                self._aplicar_paquete_personalizado_por_indice(int(parts[2]))
             else:
-                break
+                self.aplicar_paquete(parts[1])
+            return
 
-        conn.close()
+        # selección normal
+        if data is None:
+            return
 
-        # Actualizar la vista del horario
+        try:
+            id_grupo = int(data)
+        except:
+            return
+
+        parent = item.parent()
+        if not parent:
+            return
+
+        serie = parent.text(0).split(" - ")[0]
+
+        # si lo vuelve a dar click lo quita
+        if self.selecciones.get(serie) == id_grupo:
+            del self.selecciones[serie]
+        else:
+            self.selecciones[serie] = id_grupo
+
         self.actualizar_horario()
 
-        QMessageBox.information(
-            self,
-            "Paquete generado",
-            f"Se asignaron {total_asignadas} materias de forma automática."
-        )
+    # Paquete regular
+    def aplicar_paquete(self, letra):
+        conn = self.conectar()
+        cur = conn.cursor()
 
+        # semestre
+        cur.execute("SELECT Semestre FROM Alumnos WHERE Num_control=?", (self.num_control,))
+        semestre = cur.fetchone()[0]
 
-    # ACTUALIZAR HORARIO 
-    def actualizar_horario(self):
-        self.limpiar_horario()
+        # periodo
+        cur.execute("SELECT Id_periodo FROM Periodos WHERE Activo=1")
+        periodo_id = cur.fetchone()[0]
+
+        # materias que si puede cursar del semestre
+        cur.execute("""
+            SELECT Serie
+            FROM Materias
+            WHERE Semestre=?
+              AND (Seriada IS NULL OR Seriada IN (
+                   SELECT Serie FROM Kardex 
+                   WHERE Num_control=? AND Estatus='APROBADA'
+              ))
+              AND Serie NOT IN (
+                SELECT Serie FROM Kardex WHERE Num_control=? 
+                AND (Estatus='APROBADA' OR Estatus='CURSANDO')
+              )
+        """, (semestre, self.num_control, self.num_control))
+        materias = [r[0] for r in cur.fetchall()]
+
+        self.selecciones.clear()
         self.horario_ocupado.clear()
-        celdas = []
+
+        dias = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes"]
+
+        # intentar meter todas las materias del paquete
+        for serie in materias:
+            cur.execute("""
+                SELECT Id_grupo, Cupo_actual, Cupo_maximo
+                FROM Grupos
+                WHERE Serie_materia=? AND Id_periodo=? AND Grupo_letra=?
+            """, (serie, periodo_id, letra))
+            row = cur.fetchone()
+            if not row:
+                continue
+
+            idg, cup_a, cup_m = row
+            if cup_a >= cup_m:
+                continue
+
+            cur.execute("SELECT Dia_semana, Hora_inicio FROM Horario_Grupo WHERE Id_grupo=?", (idg,))
+            horarios = cur.fetchall()
+
+            choq = False
+            temp = []
+            for dia, hora in horarios:
+                if dia not in dias:
+                    choq = True
+                    break
+                fila = hora.hour - 7
+                col = dias.index(dia) + 1
+                if (fila, col) in self.horario_ocupado:
+                    choq = True
+                    break
+                temp.append((fila, col))
+
+            if choq:
+                continue
+
+            self.selecciones[serie] = idg
+            for c in temp:
+                self.horario_ocupado.add(c)
+
+        conn.close()
+        self.actualizar_horario()
+
+    # PAQUETE PERSONALIZADO 
+    def _aplicar_paquete_personalizado_por_indice(self, idx):
+        if idx < 0 or idx >= len(self.personalizados):
+            return
+
+        paquete = self.personalizados[idx]["mapping"]
+        self.selecciones.clear()
+        self.horario_ocupado.clear()
 
         conn = self.conectar()
-        cursor = conn.cursor()
+        cur = conn.cursor()
 
-        for serie, id_grupo in self.selecciones.items():
-            cursor.execute("""
-                SELECT h.Dia_semana, h.Hora_inicio, m.Nombre, g.Grupo_letra
+        dias = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes"]
+
+        for serie, idg in paquete.items():
+
+            cur.execute("SELECT Cupo_actual, Cupo_maximo FROM Grupos WHERE Id_grupo=?", (idg,))
+            cup_a, cup_m = cur.fetchone()
+            if cup_a >= cup_m:
+                continue
+
+            cur.execute("SELECT Dia_semana, Hora_inicio FROM Horario_Grupo WHERE Id_grupo=?", (idg,))
+            hrs = cur.fetchall()
+
+            choq = False
+            temp = []
+            for dia, hora in hrs:
+                fila = hora.hour - 7
+                col = dias.index(dia) + 1
+                if (fila, col) in self.horario_ocupado:
+                    choq = True
+                    break
+                temp.append((fila, col))
+
+            if choq:
+                continue
+
+            self.selecciones[serie] = idg
+            for c in temp:
+                self.horario_ocupado.add(c)
+
+        conn.close()
+        self.actualizar_horario()
+
+    # Horario (la tabla donde se muestran los horarios )
+    def actualizar_horario(self):
+        """Actualiza el horario bonito del lado derecho."""
+        self.limpiar_horario()
+        self.horario_ocupado.clear()
+
+        conn = self.conectar()
+        cur = conn.cursor()
+
+        celdas = []
+        dias = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes"]
+
+        for serie, idg in self.selecciones.items():
+            cur.execute("""
+                SELECT Dia_semana, Hora_inicio, m.Nombre, g.Grupo_letra
                 FROM Horario_Grupo h
-                JOIN Grupos g ON h.Id_grupo = g.Id_grupo
-                JOIN Materias m ON g.Serie_materia = m.Serie
-                WHERE h.Id_grupo = ?
-            """, (id_grupo,))
-
-            for dia, hora_inicio, nombre_mat, letra in cursor.fetchall():
-                try:
-                    fila = hora_inicio.hour - 7
-                except Exception:
-                    continue
-                if fila < 0 or fila >= 15:
-                    continue
-                days = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes"]
-                if dia not in days:
-                    continue
-                col = days.index(dia) + 1
-                texto_celda = f"{nombre_mat} ({letra})"
-                celdas.append((fila, col, serie, texto_celda))
+                JOIN Grupos g ON h.Id_grupo=g.Id_grupo
+                JOIN Materias m ON g.Serie_materia=m.Serie
+                WHERE h.Id_grupo=?
+            """, (idg,))
+            for dia, hora, nombre, letra in cur.fetchall():
+                fila = hora.hour - 7
+                col = dias.index(dia) + 1
+                texto = f"{nombre} ({letra})"
+                celdas.append((fila, col, texto))
                 self.horario_ocupado.add((fila, col))
 
         conn.close()
 
-        hay_choque = len(celdas) != len(self.horario_ocupado)
+        choque = len(celdas) != len(self.horario_ocupado)
 
-        for fila, col, serie, texto_celda in celdas:
-            color = QColor("#ff5252") if hay_choque else QColor("#90caf9")
-            item = QTableWidgetItem(texto_celda)
-            item.setBackground(color)
-            item.setForeground(QColor("white") if hay_choque else QColor("black"))
+        for fila, col, texto in celdas:
+            item = QTableWidgetItem(texto)
+            item.setBackground(QColor("#ff5252") if choque else QColor("#90caf9"))
+            item.setForeground(QColor("white") if choque else QColor("black"))
             item.setTextAlignment(Qt.AlignCenter)
             self.tabla_horario.setItem(fila, col, item)
 
-        # Cambiar estilo del botón
-        self.btn_finalizar.setEnabled(not hay_choque)
-        if hay_choque:
-            self.btn_finalizar.setStyleSheet("background:#b0b0b0;")
-        else:
-            self.btn_finalizar.setStyleSheet("background:#4caf50;color:white;font-weight:bold;")
+        self.btn_finalizar.setEnabled(not choque)
+        self.btn_finalizar.setStyleSheet(
+            "background:#b0b0b0;" if choque else "background:#4caf50;color:white;font-weight:bold;"
+        )
 
     def limpiar_horario(self):
-        for i in range(15):
-            for j in range(1, 6):
-                self.tabla_horario.setItem(i, j, QTableWidgetItem(""))
+        """Limpia la tabla del horario."""
+        for f in range(15):
+            for c in range(1, 6):
+                self.tabla_horario.setItem(f, c, QTableWidgetItem(""))
 
-    # ==================== CARGA AUTOMÁTICA (botón) - mantiene comportamiento previo ====================
-    def carga_automatica_paquete(self):
-        # Este botón ahora hace lo mismo que antes: intenta seleccionar el mejor grupo
-        # por materia (independiente de paquetes). Lo dejamos como "mejor cupo disponible".
-        conn = self.conectar()
-        cursor = conn.cursor()
-
-        cursor.execute("SELECT Semestre FROM Alumnos WHERE Num_control = ?", (self.num_control,))
-        row = cursor.fetchone()
-        if not row:
-            QMessageBox.critical(self, "Error", "Alumno no encontrado.")
-            conn.close()
-            return
-        semestre = row[0]
-
-        cursor.execute("""
-            SELECT Serie
-            FROM Materias
-            WHERE Semestre = ?
-              AND (Seriada IS NULL OR Seriada IN (
-                  SELECT Serie FROM Kardex WHERE Num_control = ? AND Estatus='APROBADA'
-              ))
-              AND Serie NOT IN (
-                  SELECT Serie FROM Kardex WHERE Num_control = ?
-                   AND (Estatus='APROBADA' OR Estatus='CURSANDO')
-              )
-        """, (semestre, self.num_control, self.num_control))
-
-        materias = [r[0] for r in cursor.fetchall()]
+    #  LIMPIAR Y ELIMINAR CARGA
+    def limpiar_todo(self):
+        """Limpia el horario sin borrar nada de BD."""
         self.selecciones.clear()
+        self.horario_ocupado.clear()
+        self.limpiar_horario()
 
-        # Período activo
-        cursor.execute("SELECT Id_periodo FROM Periodos WHERE Activo=1")
-        periodo_row = cursor.fetchone()
-        if not periodo_row:
-            QMessageBox.critical(self, "ERROR", "No existe período activo.")
+    def eliminar_carga_bd(self):
+        """Elimina todo lo inscrito en la BD."""
+        conn = self.conectar()
+        cur = conn.cursor()
+
+        cur.execute("SELECT COUNT(*) FROM Inscripciones WHERE Num_control=?", (self.num_control,))
+        if cur.fetchone()[0] == 0:
             conn.close()
             return
-        periodo_id = periodo_row[0]
 
-        for serie in materias:
-            cursor.execute("""
-                SELECT TOP 1 Id_grupo
-                FROM Grupos
-                WHERE Serie_materia = ?
-                  AND Id_periodo = ?
-                  AND Cupo_actual < Cupo_maximo
-                ORDER BY (Cupo_maximo - Cupo_actual) DESC
-            """, (serie, periodo_id))
+        ok = QMessageBox.question(
+            self, "Confirmar",
+            "¿Deseas borrar TODA tu carga inscrita?",
+            QMessageBox.Yes | QMessageBox.No
+        )
 
-            row = cursor.fetchone()
-            if row:
-                self.selecciones[serie] = row[0]
+        if ok != QMessageBox.Yes:
+            conn.close()
+            return
+
+        cur.execute("DELETE FROM Inscripciones WHERE Num_control=?", (self.num_control,))
+        conn.commit()
 
         conn.close()
-        self.actualizar_horario()
 
-        QMessageBox.information(self, "Paquete listo",
-                                f"Se seleccionaron {len(self.selecciones)} materias.")
+        self.limpiar_todo()
 
+    # Finalizar la carga, cuando el alumno decide terminar su carga al ddarle click sus materias 
+    # se guardaran en la bd y en el kardex las materias que tomo apareceran en cursando 
     def finalizar_carga(self):
+        """Guarda la selección final en la BD."""
         if not self.selecciones:
-            QMessageBox.warning(self, "Nada seleccionado",
-                                "Selecciona al menos un grupo.")
             return
 
         conn = self.conectar()
-        cursor = conn.cursor()
+        cur = conn.cursor()
 
         try:
-            for id_grupo in self.selecciones.values():
-                cursor.execute("""
-                    INSERT INTO Inscripciones (Num_control, Id_grupo)
-                    VALUES (?, ?)
-                """, (self.num_control, id_grupo))
+            for idg in self.selecciones.values():
+                cur.execute(
+                    "INSERT INTO Inscripciones (Num_control, Id_grupo) VALUES (?, ?)",
+                    (self.num_control, idg)
+                )
             conn.commit()
-
-            QMessageBox.information(self, "Carga completa",
-                                    "Tu carga académica fue registrada correctamente.")
-            self.generar_pdf_comprobante()
-            self.close()
-
-            from Logica_Interfaces.Menu import MenuLogic
-            MenuLogic(self.num_control).show()
 
         except Exception as e:
             conn.rollback()
@@ -737,45 +641,4 @@ class CargaMateriasLogic(CargaMaterias):
         finally:
             conn.close()
 
-    def generar_pdf_comprobante(self):
-        escritorio = os.path.join(os.environ['USERPROFILE'], 'Desktop')
-        archivo = os.path.join(
-            escritorio,
-            f"Comprobante_{self.num_control}_{datetime.now().strftime('%Y%m%d_%H%M')}.pdf"
-        )
-
-        c = canvas.Canvas(archivo, pagesize=letter)
-        c.setFont("Helvetica-Bold", 20)
-        c.drawCentredString(300, 780, "COMPROBANTE DE CARGA ACADÉMICA")
-
-        c.setFont("Helvetica", 12)
-        c.drawString(50, 750, f"Alumno: {self.num_control}")
-        c.drawString(50, 730, f"Fecha: {datetime.now().strftime('%d/%m/%Y %H:%M')}")
-
-        y = 680
-
-        conn = self.conectar()
-        cursor = conn.cursor()
-
-        for serie, id_grupo in self.selecciones.items():
-            cursor.execute("""
-                SELECT m.Nombre, g.Grupo_letra
-                FROM Materias m
-                JOIN Grupos g ON m.Serie = g.Serie_materia
-                WHERE g.Id_grupo = ?
-            """, (id_grupo,))
-            row = cursor.fetchone()
-            if row:
-                nombre, grupo = row
-                c.drawString(50, y, f"• {serie} - {nombre} - Grupo {grupo}")
-                y -= 30
-
-        conn.close()
-
-        c.showPage()
-        c.save()
-
-        try:
-            os.startfile(archivo)
-        except Exception:
-            pass
+        self.close()

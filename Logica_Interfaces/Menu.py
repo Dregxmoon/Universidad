@@ -35,7 +35,7 @@ class MenuLogic(Menu):
     def conectar_sql(self):
         return pyodbc.connect(
             'DRIVER={ODBC Driver 17 for SQL Server};'
-            'SERVER=DESKTOP-33OLAEM\\SQLEXPRESS;'
+            'SERVER=tcp:localhost,1433;'
             'DATABASE=PruebaDB;'
             'Trusted_Connection=yes;'
         )

@@ -22,6 +22,23 @@ VALUES ('23211907', 'Samuel "Galleta"', 5, 'Ing. en Sistemas Computaciones', 'ga
 INSERT INTO Alumnos (Num_control, Nombre, Semestre, Carrera, Contraseña_hash, Foto)
 VALUES ('23212005', 'Ryuko', 3, 'Ing. en Sistemas Computaciones', 'kill', 'img/Ryukio.jpg');
 
+INSERT INTO Alumnos (Num_control, Nombre, Semestre, Carrera, Contraseña_hash, Foto)
+VALUES ('23212006', 'Miku', 2, 'Ing. en Sistemas Computaciones', 'miku', 'img/miku.jpg');
+
+
+INSERT INTO Alumnos (Num_control, Nombre, Semestre, Carrera, Contraseña_hash, Foto)
+VALUES ('23212007', 'Doro', 3, 'Ing. en Sistemas Computaciones', 'doro123', 'img/doro.jpg');
+
+INSERT INTO Alumnos (Num_control, Nombre, Semestre, Carrera, Contraseña_hash, Foto)
+VALUES ('23212008', 'Ryou', 4, 'Ing. en Sistemas Computaciones', 'dinero', 'img/Ryou.jpg');
+
+INSERT INTO Alumnos (Num_control, Nombre, Semestre, Carrera, Contraseña_hash, Foto)
+VALUES ('23212009', 'Anko', 5, 'Ing. en Sistemas Computaciones', 'vampiro', 'img/Anko.jpg');
+
+INSERT INTO Alumnos (Num_control, Nombre, Semestre, Carrera, Contraseña_hash, Foto)
+VALUES ('23212010', 'Kobeni', 6, 'Ing. en Sistemas Computaciones', 'miedo', 'img/kobeni.jpg');
+
+
 DELETE FROM Alumnos
 WHERE Num_control = 23212005;
 
@@ -127,13 +144,14 @@ INSERT INTO Kardex (Num_control, Serie, Calificacion, Estatus) VALUES
 -- Urabe prueba
 INSERT INTO Kardex (Num_control, Serie, Calificacion, Estatus) VALUES
 ('23212002', 'ACF-0901', 67, 'REPROBADA'),  
-('23212002', 'AED-1285', 90, 'APROBADA'),  
-('23212002', 'ACC-0906', 70, 'APROBADA'),  
+('23212002', 'AED-1285', 50, 'REPROBADA'),  
+('23212002', 'ACC-0906', 69, 'REPROBADA'),  
 ('23212002', 'SCH-1024', 99, 'APROBADA'),  
 ('23212002', 'ACA-0907', 89, 'APROBADA'),  
 ('23212002', 'AEF-1041', 93, 'APROBADA');  
 
 SELECT * FROM Kardex
+
 -- ryuko prueba
 INSERT INTO Kardex (Num_control, Serie, Calificacion, Estatus) VALUES
 ('23212005', 'ACF-0901', 97, 'APROBADA'),  
@@ -148,7 +166,152 @@ INSERT INTO Kardex (Num_control, Serie, Calificacion, Estatus) VALUES
 ('23212005', 'ACF-0903', 79, 'APROBADA'),  
 ('23212005', 'SCC-1005', 80, 'APROBADA'),  
 ('23212005', 'AEF-1052', 89, 'APROBADA'),  
-('23212005', 'SCF-1006', 93, 'APROBADA');  
+('23212005', 'SCF-1006', 93, 'APROBADA'); 
+
+-- materias de miku
+INSERT INTO Kardex (Num_control, Serie, Calificacion, Estatus) VALUES
+('23212006', 'ACF-0901', 67, 'REPROBADA'),  
+('23212006', 'AED-1285', 90, 'APROBADA'),  
+('23212006', 'ACC-0906', 70, 'APROBADA'),  
+('23212006', 'SCH-1024', 99, 'APROBADA'),  
+('23212006', 'ACA-0907', 89, 'APROBADA'),  
+('23212006', 'AEF-1041', 93, 'APROBADA');  
+
+-- Doro 
+INSERT INTO Kardex (Num_control, Serie, Calificacion, Estatus) VALUES
+('23212007','ACF-0901',85,'APROBADA'),
+('23212007','AED-1285',90,'APROBADA'),
+('23212007','ACC-0906',80,'APROBADA'),
+('23212007','SCH-1024',88,'APROBADA'),
+('23212007','ACA-0907',92,'APROBADA'),
+('23212007','AEF-1041',87,'APROBADA'),
+
+('23212007','ACF-0902',89,'APROBADA'),
+('23212007','AED-1286',91,'APROBADA'),
+('23212007','ACF-0903',85,'APROBADA'),
+('23212007','SCC-1005',90,'APROBADA'),
+('23212007','AEF-1052',88,'APROBADA'),
+('23212007','SCF-1006',86,'APROBADA'),
+
+('23212007','ACF-0904',55,'REPROBADA'), -- 1 reprobada
+('23212007','AED-1026',80,'APROBADA'),
+('23212007','AEC-1058',75,'APROBADA'),
+('23212007','AEC-1008',82,'APROBADA'),
+('23212007','SCC-1013',70,'APROBADA'),
+('23212007','SCD-1018',85,'APROBADA');
+
+
+-- Semestre 1
+INSERT INTO Kardex (Num_control, Serie, Calificacion, Estatus) VALUES
+('23212008','ACF-0901',85,'APROBADA'),          
+('23212008','AED-1285',90,'APROBADA'),          
+('23212008','ACC-0906',55,'REPROBADA'),         
+('23212008','SCH-1024',60,'REPROBADA'),         
+('23212008','ACA-0907',88,'APROBADA'),
+('23212008','AEF-1041',87,'APROBADA');          
+
+-- Semestre 2
+INSERT INTO Kardex (Num_control, Serie, Calificacion, Estatus) VALUES
+('23212008','ACF-0902',82,'APROBADA'),          
+('23212008','AED-1286',85,'APROBADA'),         
+('23212008','ACF-0903',80,'APROBADA'),          
+('23212008','SCC-1005',78,'APROBADA'),          
+('23212008','AEF-1052',81,'APROBADA'),          
+('23212008','SCF-1006',79,'APROBADA');          
+
+-- Semestre 3
+INSERT INTO Kardex (Num_control, Serie, Calificacion, Estatus) VALUES
+('23212008','ACF-0904',80,'APROBADA'),          
+('23212008','AED-1026',84,'APROBADA'),          
+('23212008','AEC-1058',76,'APROBADA'),         
+('23212008','AEC-1008',73,'APROBADA'),         
+('23212008','SCC-1013',75,'APROBADA'),         
+('23212008','SCD-1018',72,'APROBADA');          
+
+
+-- Semestre 1
+INSERT INTO Kardex (Num_control, Serie, Calificacion, Estatus) VALUES
+('23212009','ACF-0901',86,'APROBADA'),
+('23212009','AED-1285',89,'APROBADA'),
+('23212009','ACC-0906',58,'REPROBADA'),         
+('23212009','SCH-1024',83,'APROBADA'),
+('23212009','ACA-0907',55,'REPROBADA'),         
+('23212009','AEF-1041',88,'APROBADA');
+
+-- Semestre 2
+INSERT INTO Kardex (Num_control, Serie, Calificacion, Estatus) VALUES
+('23212009','ACF-0902',85,'APROBADA'),
+('23212009','AED-1286',90,'APROBADA'),
+('23212009','ACF-0903',82,'APROBADA'),
+('23212009','SCC-1005',80,'APROBADA'),
+('23212009','AEF-1052',84,'APROBADA'),
+('23212009','SCF-1006',79,'APROBADA');
+
+-- Semestre 3
+INSERT INTO Kardex (Num_control, Serie, Calificacion, Estatus) VALUES
+('23212009','ACF-0904',81,'APROBADA'),
+('23212009','AED-1026',86,'APROBADA'),
+('23212009','AEC-1058',58,'REPROBADA'),         
+('23212009','AEC-1008',60,'REPROBADA'),        
+('23212009','SCC-1013',76,'APROBADA'),         
+('23212009','SCD-1018',74,'APROBADA');          
+
+-- Semestre 4
+INSERT INTO Kardex (Num_control, Serie, Calificacion, Estatus) VALUES
+('23212009','ACF-0905',80,'APROBADA'),          
+('23212009','SCD-1027',85,'APROBADA'),          
+('23212009','SCC-1017',78,'APROBADA'),
+('23212009','AEF-1031',82,'APROBADA'),          
+('23212009','SCD-1022',79,'APROBADA'),          
+('23212009','SCD-1003',81,'APROBADA');          
+
+
+-- Semestre 1
+INSERT INTO Kardex (Num_control, Serie, Calificacion, Estatus) VALUES
+('23212010','ACF-0901',87,'APROBADA'),
+('23212010','AED-1285',91,'APROBADA'),
+('23212010','ACC-0906',52,'REPROBADA'),        
+('23212010','SCH-1024',58,'REPROBADA'),         
+('23212010','ACA-0907',86,'APROBADA'),
+('23212010','AEF-1041',88,'APROBADA');
+
+-- Semestre 2
+INSERT INTO Kardex (Num_control, Serie, Calificacion, Estatus) VALUES
+('23212010','ACF-0902',86,'APROBADA'),
+('23212010','AED-1286',88,'APROBADA'),
+('23212010','ACF-0903',83,'APROBADA'),
+('23212010','SCC-1005',80,'APROBADA'),
+('23212010','AEF-1052',82,'APROBADA'),
+('23212010','SCF-1006',81,'APROBADA');
+
+-- Semestre 3
+INSERT INTO Kardex (Num_control, Serie, Calificacion, Estatus) VALUES
+('23212010','ACF-0904',82,'APROBADA'),          
+('23212010','AED-1026',85,'APROBADA'),          
+('23212010','AEC-1058',54,'REPROBADA'),         
+('23212010','AEC-1008',79,'APROBADA'),
+('23212010','SCC-1013',77,'APROBADA'),          
+('23212010','SCD-1018',76,'APROBADA');          
+
+-- Semestre 4
+INSERT INTO Kardex (Num_control, Serie, Calificacion, Estatus) VALUES
+('23212010','ACF-0905',80,'APROBADA'),
+('23212010','SCD-1027',84,'APROBADA'),
+('23212010','SCC-1017',75,'APROBADA'),
+('23212010','AEF-1031',81,'APROBADA'),          -
+('23212010','SCD-1022',78,'APROBADA'),
+('23212010','SCD-1003',79,'APROBADA');
+
+-- Semestre 5
+INSERT INTO Kardex (Num_control, Serie, Calificacion, Estatus) VALUES
+('23212010','SCC-1010',50,'REPROBADA'),         
+('23212010','AEC-1034',84,'APROBADA'),         
+('23212010','AEC-1061',83,'APROBADA'),          
+('23212010','SCA-1025',80,'APROBADA'),         
+('23212010','SCC-1007',82,'APROBADA'),          
+('23212010','ACD-0908',55,'REPROBADA');        
+
+
 ------------------------
 -- Estructura para hacer la carga de materias muejeje
 
@@ -221,7 +384,10 @@ GO
 USE PruebaDB
 GO
 
--- 1. PERIODO ACTIVO 2025-2
+-- funcion para generar los paquetes de cada semestre 
+-- tomando en cuenta que las materias de 5 creditos son 5 clases a la semana
+-- y las materias de 4 creditos son 4 clases a la semana
+-- tenemos la tabla de plantilla horario con la que se basa
 IF NOT EXISTS (SELECT 1 FROM Periodos WHERE Periodo_texto = '2025-2')
 BEGIN
     INSERT INTO Periodos (Periodo_texto, Nombre_periodo, Activo)
@@ -310,4 +476,8 @@ SELECT * FROM PlantillaHorarios
 -- semestre
 -- 
 
+DELETE FROM Kardex
+WHERE Num_control = 23212002
 
+SELECT* FROM Kardex
+WHERE Num_control = 23212002

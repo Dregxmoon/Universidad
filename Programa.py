@@ -7,7 +7,7 @@ from Logica_Interfaces.Menu import MenuLogic
 def conectar_sql():
     return pyodbc.connect(
         'DRIVER={ODBC Driver 17 for SQL Server};'
-        'SERVER=DESKTOP-33OLAEM\SQLEXPRESS;'
+        'SERVER=tcp:localhost,1433;'
         'DATABASE=PruebaDB;'
         'Trusted_Connection=yes;'
     )
@@ -20,11 +20,11 @@ class LoginLogic(LoginWindow):
     def conectar_sql(self):
         return pyodbc.connect(
             'DRIVER={ODBC Driver 17 for SQL Server};'
-            'SERVER=DESKTOP-33OLAEM\SQLEXPRESS;'
+            'SERVER=tcp:localhost,1433;'
             'DATABASE=PruebaDB;'
             'Trusted_Connection=yes;'
         )
- 
+    
     def validar_login(self):
         numero_control = self.numero_control_input.text().strip()
         contraseña = self.contra_input.text().strip()

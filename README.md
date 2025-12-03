@@ -1,21 +1,22 @@
-Hola 
-uwu
+Para ejecutar el programa correctamente, asegúrate de cumplir con los siguientes requisitos:
 
-script de la base de datos para el programa con algunnas inserciones
+1. Tener instalado SQL Server en tu máquina (puede ser SQL Server Express).
 
-CREATE DATABASE PruebaDB
-USE PruebaDB
+2. Contar con la base de datos `PruebaDB`. Se anexa junto al programa un archivo de respaldo (.bak) o script SQL para crearla.
 
-CREATE TABLE Alumnos (
-  Num_control CHAR(8) PRIMARY KEY,             
-  Nombre NVARCHAR(100) NOT NULL,
-  Semestre INT,         
-  Carrera NVARCHAR(50) DEFAULT 'Ing. en Sistemas Computaciones',
-  Contraseña_hash NVARCHAR(255) NOT NULL,
-  Foto NVARCHAR(255)
-);
+3. Tener instalado el **ODBC Driver 17 for SQL Server**.  
+   - Para comprobarlo, abre PowerShell y ejecuta:  
+     Get-OdbcDriver | Where-Object Name -like "*SQL Server*"  
+   - Si aparece "ODBC Driver 17 for SQL Server" en la lista, ya está listo yey!! 
 
-INSERT INTO Alumnos (Num_control, Nombre, Semestre, Carrera, Contraseña_hash, Foto)
-VALUES ('23212001', 'Himiko Toga', 2, 'Ing. en Sistemas Computaciones', 'tshzeybste', 'img/toga.jpg');
+4. Al crear la base de datos, asegúrate de que tu usuario de Windows tenga permisos de conexión (se usa `Trusted_Connection=yes`).
 
-prueba de actualizacion de mi laptop
+![alt text](image-1.png)
+
+NOTA:  
+Si no tienes instalado el ODBC Driver 17, puedes descargarlo desde este link:
+https://learn.microsoft.com/es-mx/sql/connect/odbc/download-odbc-driver-for-sql-server?view=sql-server-ver17  
+O desde tu navegador de confianza: Microsoft ODBC Driver for SQL Server
+
+
+![alt text](image-2.png)
