@@ -1,0 +1,65 @@
+# ===========================
+# Entorno virtual
+# ===========================
+venv/
+env/
+.env
+.venv/
+
+# ===========================
+# Python
+# ===========================
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.pyc
+dist/
+build/
+*.egg-info/
+*.egg
+
+# ===========================
+# PyQt5
+# ===========================
+*.qmlc
+*.jsc
+
+# ===========================
+# SQL Server / Base de datos
+# ===========================
+*.mdf
+*.ldf
+*.bak
+*.sql.bak
+
+# ===========================
+# Credenciales y configuración
+# ===========================
+config.ini
+config.py
+settings.py
+*.env
+secrets.py
+conexion.py
+
+# ===========================
+# IDEs y editores
+# ===========================
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# ===========================
+# Sistema operativo
+# ===========================
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ===========================
+# Logs
+# ===========================
+*.log
+logs/
